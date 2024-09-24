@@ -45,11 +45,6 @@ elif args.no_data_augment is True:
 else:
     NotImplementedError
 
-# delete!
-train_data.extend(test_data)
-train_codebook_data.extend(test_codebook_data)
-print('number of train samples =', len(train_data))
-
 train_rec_dataset = dataset.LLM4RecTrainDataset(train_data, train_codebook_data, args.no_shuffle)
 train_rec_loader = DataLoader(train_rec_dataset, batch_size=args.batch, shuffle=True, drop_last=False)
 valid_rec_dataset = dataset.LLM4RecDataset(valid_data, valid_codebook_data, args.no_shuffle)
