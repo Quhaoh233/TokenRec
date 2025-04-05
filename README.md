@@ -16,7 +16,7 @@ python cd code
 ```
 
 
-2. **Train from scratch (MQ Tokenizers + LLM)**
+2. **Whole Pipeline**
 ```
 python main.py --dataset=LastFM --train_vq --vq_model=MQ --n_token=256 --n_book=3
 ```
