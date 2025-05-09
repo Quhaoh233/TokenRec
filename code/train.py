@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from kmeans_pytorch import kmeans
-from transformers import T5Tokenizer, AutoModelForSeq2SeqLM, T5EncoderModel, T5ForConditionalGeneration, T5Model
+from transformers import T5Tokenizer, AutoModelForSeq2SeqLM, T5EncoderModel, T5ForConditionalGeneration, T5Model, AutoTokenizer
 import pandas as pd
 import model
 import sys
@@ -49,13 +49,14 @@ def vqvae(model, model_name, device, co_emb, n_embedding, kmean_epoch=50, m_book
             # if e in [0, 10, 20] and i == 0:
                 for m in range(m_book):
                     ids, centers = kmeans(res_dict[m], n_embedding, distance='euclidean', device=device)
-                    model.codebook[m].weight.data = centers.to(device)
-            l_reconstruct = mse_loss(x_hat, x)
+                    model.codebooks[m].weight.data = centers.to(device)
+            l_reconstruct = mse_loss(x_hat, x)  # reconstruction_loss / data_variance?
             loss = l_reconstruct
             for m in range(m_book):
                 l_embedding = mse_loss(res_dict[m].detach(), ce_dict[m])
-                l_commitment = mse_loss(res_dict[m], ce_dict[m].detach())
-                loss += l_w_embedding * l_embedding + l_w_commitment * l_commitment
+                # l_commitment = F.mse_loss(res_dict[m], ce_dict[m].detach())
+                loss += l_w_embedding * l_embedding # + l_w_commitment * l_commitment
+                
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -92,14 +93,14 @@ def backbone(data_name, train_rec_loader, valid_rec_loader, user_emb, item_emb, 
     if args.train_from_checkpoint is True:
         linear_projection = model.projection(input_dim=512, output_dim=item_emb.shape[1], target_length=args.target_length)
         t5 = T5Model.from_pretrained('../checkpoints/backbone/' + data_name)
-        tokenizer = T5Tokenizer.from_pretrained("../checkpoints/backbone/" + data_name, legacy=False)
+        tokenizer = AutoTokenizer.from_pretrained("../checkpoints/backbone/" + data_name, legacy=False)
         linear_projection.load_state_dict(torch.load('../checkpoints/backbone/' + data_name +'/projection.pt'))
         grouped_params = utils.group_model_params(t5, linear_projection, decay=args.decay)
     # read pretrained llms
     else:
         linear_projection = model.projection(input_dim=512, output_dim=item_emb.shape[1], target_length=args.target_length)
-        tokenizer = T5Tokenizer.from_pretrained("t5-small", legacy=False)
-        t5 = T5Model.from_pretrained("t5-small")
+        tokenizer = AutoTokenizer.from_pretrained("../src/t5-small", legacy=False, local_files_only=True)
+        t5 = T5Model.from_pretrained("../src/t5-small", local_files_only=True)
         add_tokens = utils.codebook_tokens(args.n_book, args.n_token)
         num_added_toks = tokenizer.add_tokens(add_tokens)  # add tne tokens to the tokenizer vocabulary
         t5.resize_token_embeddings(len(tokenizer))  # add new, random embeddings for the new tokens
@@ -167,52 +168,53 @@ def backbone(data_name, train_rec_loader, valid_rec_loader, user_emb, item_emb, 
 
         
         # ----------------- validation -----------------------------------
-        metrics = torch.zeros([2]).to(device)
-        n_batch = 0
-        t5.eval()
-        linear_projection.eval()
-        for i, sample in enumerate(tqdm(valid_rec_loader)):
-            user_id, item_id, target_id, user_cb_id, item_cb_id, target_cb_id = sample
-            input_sentences = utils.prompt(user_cb_id, item_cb_id)
-            targets = utils.get_target_emb(item_emb, target_id)
-            input_encoding = tokenizer(input_sentences, return_tensors='pt', max_length=args.source_length, padding="max_length", truncation=True)
-            input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
-            decoder_input_encoding = tokenizer([args.decoder_prepend for _ in range(len(target_cb_id))], return_tensors="pt", max_length=args.target_length, padding="max_length", truncation=True)
-            decoder_input_ids, decoder_attention_mask = decoder_input_encoding.input_ids, decoder_input_encoding.attention_mask
-            decoder_input_ids = t5._shift_right(decoder_input_ids)
+        if epoch % 10 == 0:
+            metrics = torch.zeros([2]).to(device)
+            n_batch = 0
+            t5.eval()
+            linear_projection.eval()
+            for i, sample in enumerate(tqdm(valid_rec_loader)):
+                user_id, item_id, target_id, user_cb_id, item_cb_id, target_cb_id = sample
+                input_sentences = utils.prompt(user_cb_id, item_cb_id)
+                targets = utils.get_target_emb(item_emb, target_id)
+                input_encoding = tokenizer(input_sentences, return_tensors='pt', max_length=args.source_length, padding="max_length", truncation=True)
+                input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
+                decoder_input_encoding = tokenizer([args.decoder_prepend for _ in range(len(target_cb_id))], return_tensors="pt", max_length=args.target_length, padding="max_length", truncation=True)
+                decoder_input_ids, decoder_attention_mask = decoder_input_encoding.input_ids, decoder_input_encoding.attention_mask
+                decoder_input_ids = t5._shift_right(decoder_input_ids)
 
-            with torch.no_grad():
-                outputs = t5(input_ids=input_ids.to(device), attention_mask=attention_mask.to(device), decoder_input_ids=decoder_input_ids.to(device))
-                last_hidden_states = outputs.last_hidden_state  # shape = [batch, max_source_length, embedding]
-                predicts = linear_projection(last_hidden_states)  # shape = [batch, emb]
-            if args.similarity == 'cos':  # default
-                scores = utils.similarity_score(predicts, item_emb, item_id)  # the bigger the better
-                results = torch.argsort(scores, dim=1, descending=True)
-            elif args.similarity == 'MSE':
-                scores = utils.MSE_distance(predicts, item_emb) # the less the better  
-                results = torch.argsort(scores, dim=1, descending=False) 
-            else:
-                NotImplementedError
+                with torch.no_grad():
+                    outputs = t5(input_ids=input_ids.to(device), attention_mask=attention_mask.to(device), decoder_input_ids=decoder_input_ids.to(device))
+                    last_hidden_states = outputs.last_hidden_state  # shape = [batch, max_source_length, embedding]
+                    predicts = linear_projection(last_hidden_states)  # shape = [batch, emb]
+                if args.similarity == 'cos':  # default
+                    scores = utils.similarity_score(predicts, item_emb, item_id)  # the bigger the better
+                    results = torch.argsort(scores, dim=1, descending=True)
+                elif args.similarity == 'MSE':
+                    scores = utils.MSE_distance(predicts, item_emb) # the less the better  
+                    results = torch.argsort(scores, dim=1, descending=False) 
+                else:
+                    NotImplementedError
 
-            metr, batch = myevaluate.get_metrics(target_id, results, device, args.k)
-            metrics += metr
-            n_batch += batch
-            # valid_loss += loss.item() * batch
+                metr, batch = myevaluate.get_metrics(target_id, results, device, args.k)
+                metrics += metr
+                n_batch += batch
+                # valid_loss += loss.item() * batch
 
-        # valid_loss = valid_loss / n_batch
-        print(data_name, 'valid_hit@%s =' % args.k, metrics[0].item()/n_batch, 'valid_ndcg@%s =' %  args.k, metrics[1].item()/n_batch)
-        
-        metric_list.append(metrics/n_batch)
-        # save checkpoints
-        if torch.mean(metrics/n_batch) > global_metric:
-            global_metric = torch.mean(metrics/n_batch)
-            print('Pass the validation, save checkpoints ...')
-            t5.save_pretrained('../checkpoints/backbone/' + data_name)
-            tokenizer.save_pretrained("../checkpoints/backbone/" + data_name)
-            torch.save(linear_projection.state_dict(), '../checkpoints/backbone/'  + data_name + '/projection.pt')
+            # valid_loss = valid_loss / n_batch
+            print(data_name, 'valid_hit@%s =' % args.k, metrics[0].item()/n_batch, 'valid_ndcg@%s =' %  args.k, metrics[1].item()/n_batch)
+            
+            metric_list.append(metrics/n_batch)
+            # save checkpoints
+            if torch.mean(metrics/n_batch) > global_metric:
+                global_metric = torch.mean(metrics/n_batch)
+                print('Pass the validation, save checkpoints ...')
+                t5.save_pretrained('../checkpoints/backbone/' + data_name)
+                tokenizer.save_pretrained("../checkpoints/backbone/" + data_name)
+                torch.save(linear_projection.state_dict(), '../checkpoints/backbone/'  + data_name + '/projection.pt')
 
-        metric_output = torch.stack(metric_list, dim=0)
-        metric_save = pd.DataFrame(metric_output.detach().cpu().numpy(), columns=['hit@%s' % args.k, 'ncdg@%s' % args.k])
-        metric_save.to_csv('../results/'+data_name+'/valid_metric_record.csv', index=False)
-        loss_output = pd.DataFrame(loss_list, columns=['loss'])
-        loss_output.to_csv('../results/'+data_name+'/train_loss_record.csv', index=False)
+            metric_output = torch.stack(metric_list, dim=0)
+            metric_save = pd.DataFrame(metric_output.detach().cpu().numpy(), columns=['hit@%s' % args.k, 'ncdg@%s' % args.k])
+            metric_save.to_csv('../results/'+data_name+'/valid_metric_record.csv', index=False)
+            loss_output = pd.DataFrame(loss_list, columns=['loss'])
+            loss_output.to_csv('../results/'+data_name+'/train_loss_record.csv', index=False)

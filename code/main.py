@@ -14,11 +14,12 @@ import vq
 
 
 # hype-params
+torch.autograd.set_detect_anomaly(True)
 args = parse_args()
 
 # pipeline: phase 1: vq, phase 2: llm
 data_name = args.dataset
-print('iLLMRec is working on', data_name)
+print('TokenRec is working on', data_name)
 
 use_cuda = True
 device = torch.device("cuda:" + str(args.cuda) if use_cuda and torch.cuda.is_available() else "cpu")

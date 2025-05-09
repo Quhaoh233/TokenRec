@@ -172,18 +172,19 @@ def seq_construct_v2(item_id, train_item_cb_id, user_cb_id):
 
 
 def	prompt(user_batch, items_batch, is_test=False, is_unseen=False):
-	if is_test is False:
-		sentences = [train_prompt(user, items) for user, items in zip(user_batch, items_batch)]
-	elif is_test is True:
-		if is_unseen is False:
-			sentences = [seen_prompt(user, items) for user, items in zip(user_batch, items_batch)]
-		elif is_unseen is True:
-			sentences = [unseen_prompt(user, items) for user, items in zip(user_batch, items_batch)]
-		else:
-			NotImplementedError
-	else:
-		NotImplementedError
-	return sentences
+    prefix = prefix_prompt(True, True, True)
+    if is_test is False:
+        sentences = [prefix + train_prompt(user, items) for user, items in zip(user_batch, items_batch)]
+    elif is_test is True:
+        if is_unseen is False:
+            sentences = [prefix + seen_prompt(user, items) for user, items in zip(user_batch, items_batch)]
+        elif is_unseen is True:
+            sentences = [prefix + unseen_prompt(user, items) for user, items in zip(user_batch, items_batch)]
+        else:
+            NotImplementedError
+    else:
+        NotImplementedError
+    return sentences
 
 
 def train_prompt(user, items):
@@ -198,7 +199,7 @@ def train_prompt(user, items):
 	prompts[7] = f"In light of the {user}'s interactions with the {items}, what might the user be interested in?"
 	prompts[8] = f"Considering the {user}'s past interactions with the {items}, what are the user likely preferences?"
 	prompts[9] = f"With the {user}'s history of engagement with the {items}, what would the user be inclined to like?"
-	idx = int(np.random.randint(0, len(prompts), 1))
+	idx = int(np.random.randint(len(prompts), size=1))
 
 	return prompts[idx]
 
@@ -210,6 +211,15 @@ def seen_prompt(user, items):
 	prompt = f"Given the {user}'s previous interactions with the {items}, what are the user preferences?"  # 5
 	return prompt
 
+def prefix_prompt(RP=False, ICL=False, CoT=False):
+    output = ''
+    if RP:
+        output += 'You are an expert at recommending products to users based on their purchase histories. '
+    if ICL:
+        output += 'Here is an example format for recommendations. ### Input: Given the following purchase history: [previous items]. I wonder what the user will like. Can you help me decide? ### Response: The interaction history shows that the user might like [predictive item]. '
+    if CoT:
+        output += 'Let’s think step by step. '
+    return output + '\n'
 
 class EarlyStopping:
     def __init__(self, patience=50):

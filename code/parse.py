@@ -17,7 +17,7 @@ def parse_args():
                         help="the weight decay for optimizer")
     parser.add_argument('--dropout', type=int, default=0,
                         help="using the dropout or not")
-    parser.add_argument('--batch', type=int, default=48,
+    parser.add_argument('--batch', type=int, default=128,
                         help="the batch size of training and test")
     parser.add_argument('--valid_batch', type=int, default=24,
                         help="the batch size of valid set")
