@@ -2,10 +2,10 @@ import argparse
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Go iLLMRec")
+    parser = argparse.ArgumentParser(description="Go TokenRec")
     
     # ----------------- t5 ----------------
-    parser.add_argument('--item_limit', type=int, default=100,
+    parser.add_argument('--item_limit', type=int, default=50,
                         help="the maximum number of item list")
     parser.add_argument('--k', type=int, default=10,
                         help="the number of top k setting")
