@@ -18,12 +18,12 @@ python cd code
 
 2. **Whole Pipeline**
 ```
-python main.py --dataset=LastFM --train_vq --vq_model=MQ --n_token=256 --n_book=3
+python main.py --dataset=LastFM --vq --train_vq --vq_model=MQ --n_token=256 --n_book=3
 ```
 
 3. **Train from checkpoint (LLM)**
 ```
-python main.py --dataset=LastFM --train_vq --vq_model=MQ --n_token=256 --n_book=3 --train_from_checkpoint
+python main.py --dataset=LastFM --n_token=256 --n_book=3 --train_from_checkpoint
 ```
 
 4. **Evaluation**
