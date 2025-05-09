@@ -171,8 +171,8 @@ def seq_construct_v2(item_id, train_item_cb_id, user_cb_id):
 	return seq_list, label_list, user_list, label_cb_list
 
 
-def	prompt(user_batch, items_batch, is_test=False, is_unseen=False):
-    prefix = prefix_prompt(True, True, True)
+def prompt(user_batch, items_batch, is_test=False, is_unseen=False):
+    prefix = prefix_prompt()
     if is_test is False:
         sentences = [prefix + train_prompt(user, items) for user, items in zip(user_batch, items_batch)]
     elif is_test is True:
