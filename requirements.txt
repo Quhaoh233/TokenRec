@@ -1,0 +1,7 @@
+torch=2.5.1=pypi_0
+torchmetrics=1.6.0=pypi_0
+tqdm=4.67.1=pypi_0
+transformers=4.28.0=pypi_0
+pandas=2.0.3=pypi_0
+numpy=1.26.4=pypi_0
+kmeans_pytorch
