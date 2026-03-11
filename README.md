@@ -32,7 +32,7 @@ A LLM-based Recommender System with user&item Tokenizers and a generative retrie
 ### Setup
 First, please install the required dependencies using the following command:
 ```bash
-conda create -n tokenrec
+conda create -n tokenrec python=3.9
 conda activate tokenrec
 pip install -r requirements.txt
 ```
