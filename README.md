@@ -34,7 +34,7 @@ First, please install the required dependencies using the following command:
 ```bash
 conda create -n tokenrec
 conda activate tokenrec
-pip install -4 requirements.txt
+pip install -r requirements.txt
 ```
 The environment includes seven packages solely: torch, torchmetrics, tqdm, transformers, pandas, numpy, and kmeans_pytorch.
 
