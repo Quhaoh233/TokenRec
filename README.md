@@ -38,7 +38,7 @@ pip install -4 requirements.txt
 ```
 The environment includes seven packages solely: torch, torchmetrics, tqdm, transformers, pandas, numpy, and kmeans_pytorch.
 
-[Optional] Please download the checkpoints from Google Drive and place them in the "checkpoints/" path for the inference-only implementation.
+[Optional] Please download the checkpoints from [Google Drive](https://drive.google.com/drive/folders/12OFUuX7a5v7khx_MZiel04N0x5prkdGy?usp=drive_link) and place them in the "checkpoints/" path for the inference-only implementation.
 
 ### Training
 Get into the "code" direction:
